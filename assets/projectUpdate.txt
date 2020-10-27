@@ -1,0 +1,2 @@
+different between local and git:
+ asset dir

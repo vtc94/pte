@@ -1,0 +1,6 @@
+deploy to github pages
+    - change in angular.json: "outputPath": "dist/<projectName>" -> "outputPath": "dist/"
+    - run command:
+        $ git remote add origin https://github.com/vtc94/pte.git
+        $ ng add angular-cli-ghpages
+        $ ng deploy --base-href=/pte/

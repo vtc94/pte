@@ -1,0 +1,20 @@
+Speaking:
+- content
+    optimise 2nd compare method by removing all the existed and included arrays
+
+- fluency
+    develop calculating fluency1 method base on pearson score guide 
+    https://pearsonpte.com/wp-content/uploads/2019/10/Score-Guide-for-test-takers-V12-20191030.pdf
+
+    need to fixed: read few words still get high score
+
+- reading sample
+    convert text -> speech -> audio
+
+-writing
+    spelling and grammar check api: 
+        fetch('https://languagetool.org/api/v2/check?text=' + encodeURI(text) + '&language=en-Us&enabledOnly=false')
+        .then(function(res){ console.log(res) })
+        .catch(function(res){ console.log(res) })
+
+        https://www.perfecttense.com/api
