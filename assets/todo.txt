@@ -1,3 +1,5 @@
+api: 'https://ptetoaster.herokuapp.com/api/' 
+
 Speaking:
 - content
     optimise 2nd compare method by removing all the existed and included arrays
@@ -8,13 +10,26 @@ Speaking:
 
     need to fixed: read few words still get high score
 
-- reading sample
+#Done# - reading sample
     convert text -> speech -> audio
 
--writing
-    spelling and grammar check api: 
+-pronunciation: 
+
+- DI: marking content, fluency, pronunciation
+
+- RL: improve method for marking content
+    using SWT technique
+    find unique word list
+    find match length 
+    use equation: (matchLength/wfLength)/(wfLength/transcriptLength)
+Writing:
+    #Done# - {
+        - spelling and grammar check api: 
         fetch('https://languagetool.org/api/v2/check?text=' + encodeURI(text) + '&language=en-Us&enabledOnly=false')
         .then(function(res){ console.log(res) })
         .catch(function(res){ console.log(res) })
 
         https://www.perfecttense.com/api
+    }
+
+    still need to improve
