@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Word Drop Game</title>
+  <style>
+    body {
+      text-align: center;
+      font-family: Arial;
+      background: #eee;
+    }
+
+    #canvasWrapper{
+        position: relative;
+        margin: auto;
+        margin-top: 30px;
+        width: 400px;
+        height: 600px;
+    }
+
+    #scoreWrap{
+        z-index: 10;
+        color: red;
+        position: absolute;
+        top: 15px;
+        left: 10px;
+        padding: 0;
+    }
+
+    #score, #caught {
+        margin: 0;
+        margin-top: 10px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    #info {
+        position: relative;
+        margin-top: 10px;
+        color: red;
+        font-weight: 600;
+    }
+
+    #notice {
+        color: red;
+        font-weight: 600;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, 50%);
+        width: 100%;
+        z-index: 10;
+    }
+
+    canvas {
+      background: url("./boomForestNight_background.png") no-repeat center center;
+      background-size: cover;
+      display: block;
+      margin: 0 auto;
+      border: 2px solid #444;
+      position: absolute;
+      top: 0;
+      z-index: 0
+    }
+
+    #startWrap{
+        color: red;
+        font-weight: 600;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -105%);
+        width: 100%;
+    }
+
+    #startWrap button, select {
+        color: yellowgreen;
+        font-weight: 600;
+        width: 175px;
+        height: 40px;
+        margin: 15px;
+        padding: 8px 10px;
+        font-size: 15px;
+        text-align: center;
+        background: rgba(31, 64, 107,.3);
+        border: 1px solid rgba(200,200,200,.7);
+        border-radius: 10px;
+        z-index: 100;
+    }
+
+    #startWrap button:hover, select:hover {
+        background: rgba(31, 64, 107, .7);
+    }
+    #pauseStop {
+        position: absolute;
+        top: 16px;
+        right: 10px;
+        z-index: 10;
+    }
+
+    #pauseStop button {
+        width: 75px;
+        margin: 6px;
+        padding: 3px;
+        font-size: 10px;
+        font-weight: 600;
+        color: yellowgreen;
+        background: rgba(31, 64, 107,.3);
+        border: 1px solid rgba(200,200,200,.7);
+        border-radius: 5px;
+    }
+
+    #pauseStop button:hover {
+        background: rgba(31, 64, 107,1);
+    }
+
+    .hidden {
+        display: none;
+    }
+
+    .show {
+        display: block;
+    }
+  </style>
+</head>
+<body>
+    <div id="canvasWrapper">
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        <div id="startWrap" class="show">
+            <select id="mode">
+                <option value="meaning">Translation</option>
+                <option value="speak">Speak Word</option>
+                <option value="random">Random</option>
+            </select>
+            <br/>
+            <button id="startBtn">Start</button>
+        </div>
+
+        <div id="pauseStop" class="hidden">
+            <button id="pauseBtn">Pause</button>
+            <br/>
+            <button id="stopBtn">Stop</button>
+        </div>
+
+        <div id="info"></div>
+
+        <div id="scoreWrap" class="hidden">
+            <div id="score">Score: 0</div>
+            <div id="caught">Caught: <span id="caughtChars"></span></div>
+        </div>
+
+        <div id="notice"></div>
+    </div>
+
+
+  <script>
+    const nextDropAudio = new Audio('./mixkit-game-ball-tap-2073.wav');
+    const wrongCatchAudio = new Audio('./mixkit-arcade-space-shooter-dead-notification-272.wav');
+    const failCatchAudio = new Audio("./mixkit-player-losing-or-failing-2042.wav");
+    const nextWordAudio = new Audio("./mixkit-video-game-treasure-2066.wav");
+
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const wordList = [
+      { word: "apple", meaning: "quả táo" },
+      { word: "banana", meaning: "quả chuối" },
+      { word: "grape", meaning: "quả nho" },
+      { word: "orange", meaning: "quả cam" },
+      { word: "lemon", meaning: "quả chanh" }
+    ];
+
+    const catcher = { x: 200, width: 50, height: 15 };
+    let catcherY = canvas.height - 100;
+    let dropping = [];
+    let currentWord = "", displayed = "", wordMeaning = "";
+    let currentIndex = 0, score = 0;
+    let mode = "meaning";
+    let gameRunning = false, gamePaused = false;
+    let caughtChars = "";
+    let animationId = [];
+    let timeout = {};
+
+    const startBtn = document.getElementById("startBtn");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const infoDiv = document.getElementById("info");
+    const noticeDiv = document.getElementById("notice");
+    const scoreDiv = document.getElementById("score");
+    const caughtDiv = document.getElementById("caughtChars");
+
+    document.getElementById("mode").addEventListener("change", e => mode = e.target.value);
+
+    startBtn.onclick = () => startGame();
+    pauseBtn.onclick = () => togglePause();
+    stopBtn.onclick = () => stopGame();
+
+    function startGame() {
+      stopGame();
+      score = 0;
+      updateScore();
+      caughtChars = "";
+      noticeDiv.textContent = '';
+      updateCaught();
+      gameRunning = true;
+      gamePaused = false;
+      catcher.x = canvas.width / 2 - catcher.width / 2;
+      startNextWord();
+
+      document.getElementById("scoreWrap").className = document.getElementById("scoreWrap").className.replace('hidden', 'show');
+      document.getElementById("startWrap").className = document.getElementById("startWrap").className.replace('show', 'hidden');
+      document.getElementById("pauseStop").className = document.getElementById("pauseStop").className.replace('hidden', 'show');
+    }
+
+    function togglePause() {
+      gamePaused = !gamePaused;
+      pauseBtn.textContent = gamePaused ? "Unpause" : "Pause";
+    }
+
+    function stopGame() {
+        gameRunning = false;
+        dropping = [];
+        currentWord = "";
+        displayed = "";
+        caughtChars = "";
+        currentIndex = 0;
+        infoDiv.textContent = '';
+        //noticeDiv.textContent = "Game stopped.";
+        updateCaught();
+
+        animationId.forEach(id => {
+          cancelAnimationFrame(id);
+        })
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        Object.keys(timeout).forEach(t => {
+            clearTimeout(timeout[t]);
+        })
+
+        document.getElementById("scoreWrap").className = document.getElementById("scoreWrap").className.replace('show', 'hidden');
+        document.getElementById("startWrap").className = document.getElementById("startWrap").className.replace('hidden', 'show');
+        document.getElementById("pauseStop").className = document.getElementById("pauseStop").className.replace('show', 'hidden');
+    }
+
+    function updateScore() {
+      scoreDiv.textContent = `Score: ${score}`;
+    }
+
+    function updateCaught() {
+      caughtDiv.textContent = caughtChars;
+    }
+
+    function speakWord(word) {
+      const utterance = new SpeechSynthesisUtterance(word);
+      utterance.lang = "en-US";
+      speechSynthesis.speak(utterance);
+    }
+
+    function startNextWord() {
+        const entry = wordList[Math.floor(Math.random() * wordList.length)];
+        currentWord = entry.word;
+        wordMeaning = entry.meaning;
+        currentIndex = 0;
+        dropping = [];
+        displayed = "_".repeat(currentWord.length).split("");
+
+        infoDiv.innerText = mode === "speak" || (mode === "random" && Math.random() > 0.5)
+                            ? "Listen..."
+                            : `${wordMeaning}`;
+
+        if(infoDiv.innerText !== 'Listen...'){
+            displayed[0] = currentWord[0];
+            displayed[displayed.length - 1] = currentWord[displayed.length - 1];
+        }
+
+        if (infoDiv.innerText === "Listen...") {
+            timeout['speakWord'] = setTimeout(speakWord, 1250, currentWord);
+        }
+
+        if(infoDiv.innerText === 'Listen...') {
+            dropNextCharacter(true);
+        } else {
+            dropNextCharacter();
+        }
+    }
+
+    function dropNextCharacter(startNewWord) {
+        console.log(startNewWord);
+      if (!gameRunning || currentIndex >= currentWord.length) return;
+
+      if (infoDiv.innerText !== 'Listen...' && (currentIndex === 0 ||currentIndex === currentWord.length - 1)) {
+        currentIndex++;
+        
+        return dropNextCharacter(true);
+      }
+
+      const correctChar = currentWord[currentIndex];
+      const options = [correctChar];
+      while (options.length < 4) {
+        const rand = String.fromCharCode(97 + Math.floor(Math.random() * 26));
+        if (!options.includes(rand)) options.push(rand);
+      }
+
+      options.sort(() => Math.random() - 0.5);
+
+      dropping = options.map((char, i) => ({
+        x: 50 + i * 80,
+        y: 110,
+        char,
+        isCorrect: char === correctChar
+      }));
+
+      if(startNewWord){
+        timeout['startNewWord'] = setTimeout(animateDrop, 1000);
+      } else {
+        animateDrop();
+      }
+    }
+
+    function animateDrop() {
+        const dropSpeed = 2;
+
+        function frame() {
+            if (!gameRunning || gamePaused) {
+                animationId.push(requestAnimationFrame(frame));
+                return;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw catcher
+            //ctx.fillStyle = "yellow";
+            //ctx.fillRect(catcher.x, catcherY, catcher.width, catcher.height);
+            drawCatcher();
+
+            // Draw displayed word
+            ctx.fillStyle = "white";
+            ctx.font = "20px Arial";
+            ctx.fillText(displayed.join(" "), canvas.width/2 - currentWord.length*18/2, 80);
+
+            // Draw and move characters
+            ctx.fillStyle = "white";
+            dropping.forEach(d => {
+                ctx.fillText(d.char, d.x, d.y);
+                d.y += dropSpeed;
+            });
+            
+            // Collision check
+            for (let d of dropping) {
+                if (d.y >= catcherY && d.y <= catcherY + catcher.height) {
+                    if (d.x >= catcher.x && d.x <= catcher.x + catcher.width) {
+                        caughtChars = d.char;
+                        updateCaught();
+
+                        if (d.isCorrect) {
+                            displayed[currentIndex] = currentWord[currentIndex];
+                            currentIndex++;
+                            dropping = [];
+                            if (!displayed.includes("_")) {
+                                nextWordAudio.volume = 0.5;
+                                nextWordAudio.play();
+                                dropping = [];
+                                score++;
+                                updateScore();
+                                startNextWord();
+                            } else {
+                                nextDropAudio.volume = 0.5;
+                                nextDropAudio.play();
+                                dropNextCharacter(false);
+                            }
+                        } else {
+                            wrongCatchAudio.volume = 0.5;
+                            wrongCatchAudio.play();
+                            endGame("Wrong character caught!");
+                        }
+                        return;
+                    }
+                } else if (d.y >= canvas.height - 20 || d.y > catcherY + catcher.height) {
+                    failCatchAudio.volume = 0.5;
+                    failCatchAudio.play();
+                    endGame("Missed correct character!");
+                    return;
+                }
+            }
+
+            animationId.push(requestAnimationFrame(frame));
+        }
+
+        animationId.psuh(requestAnimationFrame(frame));
+    }
+
+    function endGame(msg) {
+      gameRunning = false;
+      noticeDiv.innerText = "Game Over: " + msg;
+      //cancelAnimationFrame(animationId);
+
+      stopGame();
+    }
+
+    document.addEventListener("keydown", e => {
+      if (gameRunning && !gamePaused) {
+        if (e.key === "ArrowLeft") {
+          catcher.x -= 20;
+          if (catcher.x < 0) catcher.x = 0;
+        } else if (e.key === "ArrowRight") {
+          catcher.x += 20;
+          if (catcher.x > canvas.width - catcher.width)
+            catcher.x = canvas.width - catcher.width;
+        }
+      }
+    });
+
+    canvas.addEventListener("mousemove", function (e) {
+        if (!gameRunning || gamePaused) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+
+        catcher.x = mouseX - catcher.width / 2;
+
+        // Clamp within canvas
+        if (catcher.x < 0) catcher.x = 0;
+        if (catcher.x + catcher.width > canvas.width) {
+            catcher.x = canvas.width - catcher.width;
+        }
+    });
+
+    canvas.addEventListener("touchmove", function (e) {
+      if (!gameRunning || gamePaused) return;
+
+      // Prevent scrolling the page
+      e.preventDefault();
+
+      const touch = e.touches[0]; // Get the first touch point
+      const rect = canvas.getBoundingClientRect();
+      const touchX = touch.clientX - rect.left;
+
+      catcher.x = touchX - catcher.width / 2;
+
+      // Clamp within canvas
+      if (catcher.x < 0) catcher.x = 0;
+      if (catcher.x + catcher.width > canvas.width) {
+        catcher.x = canvas.width - catcher.width;
+      }
+    }, { passive: false });
+
+    function drawCatcher() {
+        ctx.fillStyle = "yellow";
+        ctx.beginPath();
+        const radius = 4;
+        ctx.moveTo(catcher.x + radius, catcherY);
+        ctx.lineTo(catcher.x + catcher.width - radius, catcherY);
+        ctx.quadraticCurveTo(catcher.x + catcher.width, catcherY, catcher.x + catcher.width, catcherY + radius);
+        ctx.lineTo(catcher.x + catcher.width, catcherY + catcher.height - radius);
+        ctx.quadraticCurveTo(catcher.x + catcher.width, catcherY + catcher.height, catcher.x + catcher.width - radius, catcherY + catcher.height);
+        ctx.lineTo(catcher.x + radius, catcherY + catcher.height);
+        ctx.quadraticCurveTo(catcher.x, catcherY + catcher.height, catcher.x, catcherY + catcher.height - radius);
+        ctx.lineTo(catcher.x, catcherY + radius);
+        ctx.quadraticCurveTo(catcher.x, catcherY, catcher.x + radius, catcherY);
+        ctx.closePath();
+        ctx.fill();
+    }
+  </script>
+</body>
+</html>
